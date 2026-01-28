@@ -19,6 +19,8 @@
 package org.apache.flink.connector.kafka.source.metrics;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.eventtime.TimestampAssigner;
+import org.apache.flink.connector.base.metric.VstreamExpandMetricName;
 import org.apache.flink.connector.kafka.MetricUtil;
 import org.apache.flink.connector.kafka.source.reader.KafkaSourceReader;
 import org.apache.flink.metrics.Counter;
@@ -27,6 +29,10 @@ import org.apache.flink.metrics.groups.OperatorIOMetricGroup;
 import org.apache.flink.metrics.groups.SourceReaderMetricGroup;
 import org.apache.flink.runtime.metrics.MetricNames;
 import org.apache.flink.runtime.metrics.groups.TaskIOMetricGroup;
+import org.apache.flink.vstream.metrics.VstreamHistogram;
+import org.apache.flink.vstream.metrics.VstreamHistogramMetricView;
+import org.apache.flink.vstream.metrics.VstreamMeter;
+import org.apache.flink.vstream.metrics.VstreamMetricView;
 
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.Metric;
@@ -37,6 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
+import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -85,6 +92,8 @@ public class KafkaSourceReaderMetrics {
 
     public static final long INITIAL_OFFSET = -1;
 
+    private long lastFetchTime = TimestampAssigner.NO_TIMESTAMP;
+
     // Source reader metric group
     private final SourceReaderMetricGroup sourceReaderMetricGroup;
 
@@ -94,6 +103,9 @@ public class KafkaSourceReaderMetrics {
     // Successful / Failed commits counters
     private final Counter commitsSucceeded;
     private final Counter commitsFailed;
+    private final VstreamMeter numBytesIn;
+
+    private final VstreamHistogram emitIngestionTimeLag;
 
     // Map for tracking current consuming / committing offsets
     private final Map<TopicPartition, Offset> offsets = new HashMap<>();
@@ -115,6 +127,10 @@ public class KafkaSourceReaderMetrics {
                 this.kafkaSourceReaderMetricGroup.counter(COMMITS_SUCCEEDED_METRIC_COUNTER);
         this.commitsFailed =
                 this.kafkaSourceReaderMetricGroup.counter(COMMITS_FAILED_METRIC_COUNTER);
+        this.numBytesIn =
+                this.kafkaSourceReaderMetricGroup.meter(VstreamExpandMetricName.VSTREAM_SOURCE_NUM_BYTES_IN, new VstreamMetricView());
+        this.emitIngestionTimeLag = this.kafkaSourceReaderMetricGroup
+                .histogram(VstreamExpandMetricName.VSTREAM_SOURCE_EMIT_INGESTION_TIME_LAG, new VstreamHistogramMetricView(1000));
     }
 
     /**
@@ -154,9 +170,11 @@ public class KafkaSourceReaderMetrics {
      * @param tp Updating topic partition
      * @param offset Current consuming offset
      */
-    public void recordCurrentOffset(TopicPartition tp, long offset) {
+    public void recordCurrentOffset(TopicPartition tp, long offset, long timestamp) {
+        this.lastFetchTime = System.currentTimeMillis();
         checkTopicPartitionTracked(tp);
         offsets.get(tp).currentOffset = offset;
+        this.emitIngestionTimeLag.update(this.lastFetchTime - timestamp);
     }
 
     /**
@@ -259,6 +277,7 @@ public class KafkaSourceReaderMetrics {
                     .getIOMetricGroup()
                     .getNumBytesInCounter()
                     .inc(bytesConsumedSinceLastUpdate);
+            this.numBytesIn.markEvent(bytesConsumedSinceLastUpdate);
             latestBytesConsumedTotal = bytesConsumedUntilNow;
         }
     }
