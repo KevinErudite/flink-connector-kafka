@@ -190,7 +190,18 @@ under the License.
     </dependencies>
 
     <!-- This section defines the module versions that are used if nothing else is specified. -->
-
+	<distributionManagement>
+		<repository>
+			<id>nexus-releases</id>
+			<name>Nexus Release Repository</name>
+			<url>http://nexus.vivo.xyz/nexus/content/repositories/releases/</url>
+		</repository>
+		<snapshotRepository>
+			<id>nexus-snapshots</id>
+			<name>Nexus Snapshot Repository</name>
+			<url>http://nexus.vivo.xyz/nexus/content/repositories/snapshots/</url>
+		</snapshotRepository>
+	</distributionManagement>
     <dependencyManagement>
 
         <dependencies>
@@ -500,4 +511,14 @@ under the License.
             </plugin>
         </plugins>
     </build>
+
+	<repositories>
+		<repository>
+			<id>confluent</id>
+			<url>https://packages.confluent.io/maven/</url>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
 </project>
