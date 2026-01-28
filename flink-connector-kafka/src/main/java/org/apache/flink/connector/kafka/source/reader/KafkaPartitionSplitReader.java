@@ -545,7 +545,7 @@ public class KafkaPartitionSplitReader
                 final ConsumerRecord<byte[], byte[]> record = recordIterator.next();
                 // Only emit records before stopping offset
                 if (record.offset() < currentSplitStoppingOffset) {
-                    metrics.recordCurrentOffset(currentTopicPartition, record.offset());
+                    metrics.recordCurrentOffset(currentTopicPartition, record.offset(), record.timestamp());
                     return record;
                 }
             }

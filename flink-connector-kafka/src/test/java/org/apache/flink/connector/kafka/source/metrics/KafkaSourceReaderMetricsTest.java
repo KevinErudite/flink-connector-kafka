@@ -54,10 +54,10 @@ public class KafkaSourceReaderMetricsTest {
         kafkaSourceReaderMetrics.registerTopicPartition(BAR_0);
         kafkaSourceReaderMetrics.registerTopicPartition(BAR_1);
 
-        kafkaSourceReaderMetrics.recordCurrentOffset(FOO_0, 15213L);
-        kafkaSourceReaderMetrics.recordCurrentOffset(FOO_1, 18213L);
-        kafkaSourceReaderMetrics.recordCurrentOffset(BAR_0, 18613L);
-        kafkaSourceReaderMetrics.recordCurrentOffset(BAR_1, 15513L);
+        kafkaSourceReaderMetrics.recordCurrentOffset(FOO_0, 15213L, System.currentTimeMillis() - 1000);
+        kafkaSourceReaderMetrics.recordCurrentOffset(FOO_1, 18213L, System.currentTimeMillis() - 1000);
+        kafkaSourceReaderMetrics.recordCurrentOffset(BAR_0, 18613L, System.currentTimeMillis() - 1000);
+        kafkaSourceReaderMetrics.recordCurrentOffset(BAR_1, 15513L, System.currentTimeMillis() - 1000);
 
         assertCurrentOffset(FOO_0, 15213L, metricListener);
         assertCurrentOffset(FOO_1, 18213L, metricListener);
@@ -106,7 +106,7 @@ public class KafkaSourceReaderMetricsTest {
         final KafkaSourceReaderMetrics kafkaSourceReaderMetrics =
                 new KafkaSourceReaderMetrics(
                         InternalSourceReaderMetricGroup.mock(metricListener.getMetricGroup()));
-        assertThatThrownBy(() -> kafkaSourceReaderMetrics.recordCurrentOffset(FOO_0, 15213L))
+        assertThatThrownBy(() -> kafkaSourceReaderMetrics.recordCurrentOffset(FOO_0, 15213L, System.currentTimeMillis() - 1000))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> kafkaSourceReaderMetrics.recordCommittedOffset(FOO_0, 15213L))
                 .isInstanceOf(IllegalArgumentException.class);
