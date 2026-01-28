@@ -31,6 +31,8 @@ import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
 import org.apache.flink.streaming.connectors.kafka.internals.metrics.KafkaMetricMutableWrapper;
 import org.apache.flink.util.FlinkRuntimeException;
 
+import org.apache.flink.vstream.metrics.VstreamMetricView;
+
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -56,6 +58,8 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Consumer;
 
+import static org.apache.flink.connector.base.metric.VstreamExpandMetricName.VSTREAM_SINK_NUM_BYTES_OUT;
+import static org.apache.flink.connector.base.metric.VstreamExpandMetricName.VSTREAM_SINK_NUM_RECORDS_OUT;
 import static org.apache.flink.util.IOUtils.closeAll;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
@@ -88,9 +92,9 @@ class KafkaWriter<IN>
     private final Map<String, KafkaMetricMutableWrapper> previouslyCreatedMetrics = new HashMap<>();
     private final SinkWriterMetricGroup metricGroup;
     private final boolean disabledMetrics;
-    private final Counter numRecordsOutCounter;
-    private final Counter numBytesOutCounter;
     private final Counter numRecordsOutErrorsCounter;
+    private final VstreamMetricView recordsNumOut;
+    private final VstreamMetricView recordsByteOut;
     private final ProcessingTimeService timeService;
 
     // Number of outgoing bytes at the latest metric sync
@@ -149,8 +153,8 @@ class KafkaWriter<IN>
                                         kafkaProducerConfig.get(KEY_REGISTER_METRICS).toString());
         this.timeService = sinkInitContext.getProcessingTimeService();
         this.metricGroup = sinkInitContext.metricGroup();
-        this.numBytesOutCounter = metricGroup.getIOMetricGroup().getNumBytesOutCounter();
-        this.numRecordsOutCounter = metricGroup.getIOMetricGroup().getNumRecordsOutCounter();
+        this.recordsNumOut = metricGroup.meter(VSTREAM_SINK_NUM_RECORDS_OUT, new VstreamMetricView());
+        this.recordsByteOut = metricGroup.meter(VSTREAM_SINK_NUM_BYTES_OUT, new VstreamMetricView());
         this.numRecordsOutErrorsCounter = metricGroup.getNumRecordsOutErrorsCounter();
         this.kafkaSinkContext =
                 new DefaultKafkaSinkContext(
@@ -193,7 +197,7 @@ class KafkaWriter<IN>
                 recordSerializer.serialize(element, kafkaSinkContext, context.timestamp());
         if (record != null) {
             currentProducer.send(record, deliveryCallback);
-            numRecordsOutCounter.inc();
+            recordsNumOut.markEvent();
         }
     }
 
@@ -399,7 +403,7 @@ class KafkaWriter<IN>
                     long outgoingBytesUntilNow = ((Number) byteOutMetric.metricValue()).longValue();
                     long outgoingBytesSinceLastUpdate =
                             outgoingBytesUntilNow - latestOutgoingByteTotal;
-                    numBytesOutCounter.inc(outgoingBytesSinceLastUpdate);
+                    recordsByteOut.markEvent(outgoingBytesSinceLastUpdate);
                     latestOutgoingByteTotal = outgoingBytesUntilNow;
                     lastSync = time;
                     registerMetricSync();
